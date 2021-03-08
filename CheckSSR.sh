@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 #
 # CheckSSR.sh
 #	
@@ -11,7 +11,7 @@
 # 20210227 - 	Created.
 # 20210306 - 	Changed wget to curl. Now sending hits as attachment
 # 20210307 - 	Added pre-flight check
-# 20210308 - 	optional to send results in body or as attachment.
+# 20210308 - 	optional to send results in body or as attachment (still in progress)
 # 		Added perl line to clean up $HITS so it can be cat'd into an email
 # 
 #
@@ -25,8 +25,7 @@
 #		file: /home/[USER]/cooking/QuerySSR/positions.txt
 #	User dir for the executable
 #		dir:  /home/[USER]/bin/
-#	Packages
-#		mailx, sendmail, curl
+
 
 
 
