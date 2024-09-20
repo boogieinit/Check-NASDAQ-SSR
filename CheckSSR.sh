@@ -4,7 +4,7 @@
 #	
 #	Pull SSR list from NASDAQ, interrogate for owned positions, notify
 #
-#	Sheduled cron to run weekdays at 5am CT (supress emails)
+#	To automate - shedule cron to run weekdays at 5am CT (and supress emails)
 #	Cron: 0 5 * * 1-5	/home/[USER]/bin/QuerySSR.sh	>/dev/null 2>&1
 #
 # Changelog:
@@ -28,36 +28,31 @@
 
 
 
-
-
-
 ############################################
 # Config
 ############################################
 
 # User config
-WRKDIR=/home/creeves/cooking/stonks/CheckSSR  # created automatically
-MAILTO=crdaytrading@gmail.com
+WRKDIR=~/bin/stonks/CheckSSR  # created automatically
+MAILTO=user@domain.com #
 
 # How do you want "hits" emailed?
 # (0=in body, 1=as attachment)
 SENDSTYLE=1
 
 
+
 # ----------------------------------------------- #
 # -------------- DO NOT EDIT BELOW -------------- #
 # ----------------------------------------------- #
 
-
 # Global config
 TODAY=$(date +%Y%m%d)
 
-
-#######################
-# Weekend testing - manually set date for non-market days
+#####################################################################
+# Weekend testing - uncomment & manually set date for non-market days
 #TODAY=20210305
-#######################
-
+#####################################################################
 
 MAINURL="https://www.nasdaqtrader.com/trader.aspx?id=ShortSaleCircuitBreaker"
 FILEBASE="https://www.nasdaqtrader.com/dynamic/symdir/shorthalts"
