@@ -13,6 +13,8 @@
 # 20210308 - Optional to send results in body or as attachment
 #            Added perl line to clean up $HITS so it can be cat'd into an email
 # 20250514 - Updated for MacOS compatibility, improved error handling and security
+# 20250522 - Added functionality to get a copy of the SSR list and report top 10 stocks
+# 20250522 - Fixed email attachment functionality using mpack on MacOS
 #
 # Info:
 # NASDAQ URL: https://nasdaqtrader.com/dynamic/symdir/shorthalts/shorthaltsYYYYMMDD.txt
@@ -92,6 +94,12 @@ if [[ -z "${MAILTO}" || "${MAILTO}" == "your.email@example.com" ]]; then
     exit 1
 fi
 
+# Additional commands required for attachment mode
+# (checked after the config is loaded so SENDSTYLE from the config is honored)
+if [[ "${SENDSTYLE}" -eq 1 ]]; then
+    REQUIRED_COMMANDS="${REQUIRED_COMMANDS} mpack"  # mpack is required for sending attachments on MacOS
+fi
+
 
 # ----------------------------------------------- #
 # -------------- SCRIPT VARIABLES -------------- #
@@ -103,7 +111,7 @@ MAINURL="https://www.nasdaqtrader.com/trader.aspx?id=ShortSaleCircuitBreaker"
 FILEBASE="https://www.nasdaqtrader.com/dynamic/symdir/shorthalts"
 SSRFILE="shorthalts${TODAY}.txt"
 FILEURL="${FILEBASE}/${SSRFILE}"
-MAILSUBJECT="Positions found on SSR for ${TODAY}"
+MAILSUBJECT="SSR Report: Positions & Top 10 Stocks for ${TODAY}"
 TEMPDIR=""
 
 # Create secure temporary files with predictable cleanup
@@ -132,6 +140,7 @@ setup_temp_files() {
     # Set temporary file paths
     SSRFILE_PATH="${TEMPDIR}/${SSRFILE}"
     HITS_PATH="${TEMPDIR}/hits.txt"
+    TOP10_PATH="${TEMPDIR}/top10_ssr.txt"
     
     # Setup trap to remove temporary files on exit
     trap 'log "INFO" "Cleaning up temporary files"; rm -rf "${TEMPDIR}"; log "INFO" "Script completed"' EXIT
@@ -153,7 +162,13 @@ preflight_check() {
     for cmd in ${REQUIRED_COMMANDS}; do
         if ! command -v "${cmd}" &> /dev/null; then
             log "ERROR" "${cmd} is required but not found"
-            log "ERROR" "On MacOS, install using: brew install ${cmd}"
+            if [[ "${cmd}" == "mpack" ]]; then
+                log "ERROR" "mpack is required for sending attachments on MacOS"
+                log "ERROR" "Install using: brew install mpack"
+                log "ERROR" "Alternatively, set SENDSTYLE=0 in ${CONFIG_FILE} to send emails without attachments"
+            else
+                log "ERROR" "On MacOS, install using: brew install ${cmd}"
+            fi
             exit 1
         fi
     done
@@ -218,6 +233,30 @@ getfile() {
     log "INFO" "Successfully downloaded SSR file"
 }
 
+save_ssr_list() {
+    log "INFO" "Processing SSR list to extract top 10 stocks"
+    
+    # Save header from original file
+    head -n 1 "${SSRFILE_PATH}" > "${TOP10_PATH}"
+    
+    # Filter out warrants and process to get top 10 stocks sorted by trigger time
+    grep -v "Warrant" "${SSRFILE_PATH}" | 
+    grep -v "Wt," | 
+    grep -v "Wts" | 
+    tail -n +2 | 
+    sort -t ',' -k4,4 | 
+    head -n 10 >> "${TOP10_PATH}"
+    
+    # Check if we successfully created the top 10 list
+    if [[ ! -s "${TOP10_PATH}" ]]; then
+        log "WARN" "Failed to create top 10 SSR list, file is empty"
+    else
+        local stock_count
+        stock_count=$(($(wc -l < "${TOP10_PATH}") - 1)) # Subtract 1 for header
+        log "INFO" "Created top 10 SSR list with ${stock_count} stocks"
+    fi
+}
+
 
 search() {
     log "INFO" "Searching for positions in SSR list"
@@ -247,30 +286,97 @@ search() {
 }
 
 notify() {
-    log "INFO" "Checking if notifications should be sent"
+    log "INFO" "Preparing to send notification with SSR report"
     
-    # Only send notification if matches were found
+    local match_count=0
+    local top10_count=0
+    
+    # Check if we have matches for owned positions
     if [[ -s "${HITS_PATH}" ]]; then
-        log "INFO" "Sending notification email to ${MAILTO}"
-        local match_count
         match_count=$(wc -l < "${HITS_PATH}")
-        
-        if [[ "${SENDSTYLE}" -eq 1 ]]; then
-            # Send as attachment
-            log "INFO" "Sending ${match_count} matches as attachment"
-            echo "Found ${match_count} positions on NASDAQ SSR list for ${TODAY}" | 
-                mail -s "${MAILSUBJECT}" -a "${HITS_PATH}" "${MAILTO}"
-        else
-            # Send in email body
-            log "INFO" "Sending ${match_count} matches in email body"
-            # Convert any Windows line endings to Unix format
-            perl -p -e 's/\r\n/\n/g' "${HITS_PATH}" |
-                mail -s "${MAILSUBJECT}" "${MAILTO}"
-        fi
-        log "INFO" "Notification sent successfully"
+        log "INFO" "Found ${match_count} position matches on SSR list"
     else
-        log "INFO" "No matches found, no notification sent"
+        log "INFO" "No position matches found on SSR list"
     fi
+    
+    # Check if we have top 10 stocks list
+    if [[ -s "${TOP10_PATH}" ]]; then
+        top10_count=$(($(wc -l < "${TOP10_PATH}") - 1)) # Subtract 1 for header
+        log "INFO" "Found ${top10_count} stocks in top 10 SSR list"
+    else
+        log "WARN" "Top 10 SSR list is empty or not available"
+    fi
+    
+    # Always send notification with both hits (if any) and top 10 list
+    log "INFO" "Sending notification email to ${MAILTO}"
+    
+    if [[ "${SENDSTYLE}" -eq 1 ]]; then
+        # Send as attachments
+        log "INFO" "Sending report as attachments"
+        local email_body="SSR Report for ${TODAY}:\n\n"
+        
+        if [[ ${match_count} -gt 0 ]]; then
+            email_body+="Found ${match_count} of your positions on the SSR list.\n"
+            email_body+="See attachment for details.\n\n"
+        else
+            email_body+="None of your positions were found on the SSR list.\n\n"
+        fi
+        
+        if [[ ${top10_count} -gt 0 ]]; then
+            email_body+="Top ${top10_count} stocks on the SSR list are included as attachment."
+        else
+            email_body+="No top stocks list available."
+        fi
+        
+        # Send email with body content
+        local temp_email_file="${TEMPDIR}/email_body.txt"
+        echo -e "${email_body}" > "${temp_email_file}"
+        
+        # Use mpack for attachments (MacOS compatible)
+        log "INFO" "Using mpack to send email with attachments"
+        
+        # Build attachment list for mpack
+        local attachment_files=""
+        if [[ -s "${HITS_PATH}" ]]; then
+            attachment_files+=" ${HITS_PATH}"
+        fi
+        
+        if [[ -s "${TOP10_PATH}" ]]; then
+            attachment_files+=" ${TOP10_PATH}"
+        fi
+        
+        # Send email with attachments using mpack
+        if ! mpack -s "${MAILSUBJECT}" -d "${temp_email_file}" ${attachment_files} "${MAILTO}"; then
+            log "ERROR" "Failed to send email with attachments"
+            log "ERROR" "Check that mpack is installed and configured correctly"
+        fi
+    else
+        # Send in email body
+        log "INFO" "Sending report in email body"
+        local email_body="SSR Report for ${TODAY}:\n\n"
+        
+        # Add position matches if any
+        if [[ ${match_count} -gt 0 ]]; then
+            email_body+="YOUR POSITIONS ON SSR LIST:\n"
+            email_body+="==========================\n"
+            email_body+="$(perl -p -e 's/\r\n/\n/g' "${HITS_PATH}")\n\n"
+        else
+            email_body+="None of your positions were found on the SSR list.\n\n"
+        fi
+        
+        # Add top 10 stocks
+        if [[ ${top10_count} -gt 0 ]]; then
+            email_body+="TOP ${top10_count} STOCKS ON SSR LIST:\n"
+            email_body+="==========================\n"
+            email_body+="$(perl -p -e 's/\r\n/\n/g' "${TOP10_PATH}")\n"
+        else
+            email_body+="No top stocks list available."
+        fi
+        
+        # Send email with body content
+        echo -e "${email_body}" | mail -s "${MAILSUBJECT}" "${MAILTO}"
+    fi
+    log "INFO" "Notification sent successfully"
 }
 
 
@@ -287,6 +393,7 @@ setup_temp_files
 # Run the process
 preflight_check
 getfile
+save_ssr_list
 search
 notify
 
