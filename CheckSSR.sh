@@ -14,7 +14,6 @@
 #            Added perl line to clean up $HITS so it can be cat'd into an email
 # 20250514 - Updated for MacOS compatibility, improved error handling and security
 # 20250522 - Added functionality to get a copy of the SSR list and report top 10 stocks
-# 20250522 - Fixed email attachment functionality using mpack on MacOS
 #
 # Info:
 # NASDAQ URL: https://nasdaqtrader.com/dynamic/symdir/shorthalts/shorthaltsYYYYMMDD.txt
@@ -50,7 +49,7 @@ log() {
 log "INFO" "Starting ${SCRIPT_NAME}"
 
 # Configuration
-CONFIG_DIR="${HOME}/.config/check-ssr"
+CONFIG_DIR="${HOME}/.config/CheckSSR"
 CONFIG_FILE="${CONFIG_DIR}/config.sh"
 
 # Default configuration values

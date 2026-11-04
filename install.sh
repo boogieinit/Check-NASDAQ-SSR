@@ -43,7 +43,7 @@ SOURCE_SCRIPT="${SCRIPT_DIR}/$(basename "${SOURCE_SCRIPT_RELATIVE}")"
 
 # Installation directories
 INSTALL_BIN_DIR="${HOME}/bin"
-CONFIG_DIR="${HOME}/.config/check-ssr"
+CONFIG_DIR="${HOME}/.config/CheckSSR"
 DATA_DIR="${HOME}/Documents/CheckSSR"
 LOG_DIR="${HOME}/Library/Logs/CheckSSR"
 LAUNCHD_DIR="${HOME}/Library/LaunchAgents"
