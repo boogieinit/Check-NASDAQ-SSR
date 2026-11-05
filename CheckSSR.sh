@@ -46,6 +46,21 @@ log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [${level}] ${message}" | tee -a "${LOG_FILE}"
 }
 
+# Send a plain-text email to MAILTO.
+# Uses msmtp when installed (authenticated SMTP, e.g. Gmail, configured in ~/.msmtprc),
+# otherwise falls back to the system mail command, which often cannot deliver from a
+# home network because outgoing port 25 is blocked.
+send_mail() {
+    local subject="$1"
+    local body="$2"
+    if command -v msmtp >/dev/null 2>&1; then
+        printf 'To: %s\nSubject: %s\nContent-Type: text/plain; charset=UTF-8\n\n%s\n' \
+            "${MAILTO}" "${subject}" "${body}" | msmtp "${MAILTO}"
+    else
+        printf '%s\n' "${body}" | mail -s "${subject}" "${MAILTO}"
+    fi
+}
+
 log "INFO" "Starting ${SCRIPT_NAME}"
 
 # Configuration
@@ -218,14 +233,14 @@ getfile() {
     log "DEBUG" "Downloading SSR file from ${FILEURL}"
     if ! curl --max-time 30 --retry 3 --silent --fail --location "${FILEURL}" > "${SSRFILE_PATH}"; then
         log "ERROR" "Failed to download SSR file"
-        mail -s "SSR Check Failed" "${MAILTO}" <<< "Failed to download SSR file for ${TODAY}"
+        send_mail "SSR Check Failed" "Failed to download SSR file for ${TODAY}"
         exit 1
     fi
     
     # Check if file was received and has content
     if [[ ! -s "${SSRFILE_PATH}" ]]; then
         log "ERROR" "Downloaded SSR file is empty"
-        mail -s "SSR Check Failed" "${MAILTO}" <<< "SSR file for ${TODAY} is empty"
+        send_mail "SSR Check Failed" "SSR file for ${TODAY} is empty"
         exit 1
     fi
     
@@ -263,7 +278,7 @@ search() {
     # Check for SAMEORIGIN error in response
     if grep -q "SAMEORIGIN" "${SSRFILE_PATH}"; then
         log "ERROR" "Received SAMEORIGIN error, possibly rate-limited by NASDAQ"
-        mail -s "Could not pull SSR file" "${MAILTO}" <<< "Rate limited by NASDAQ site"
+        send_mail "Could not pull SSR file" "Rate limited by NASDAQ site"
         exit 1
     fi
     
@@ -373,7 +388,10 @@ notify() {
         fi
         
         # Send email with body content
-        echo -e "${email_body}" | mail -s "${MAILSUBJECT}" "${MAILTO}"
+        if ! send_mail "${MAILSUBJECT}" "$(echo -e "${email_body}")"; then
+            log "ERROR" "Failed to send notification email"
+            exit 1
+        fi
     fi
     log "INFO" "Notification sent successfully"
 }
