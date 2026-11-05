@@ -4,7 +4,7 @@
 #
 # Pull SSR list from NASDAQ, interrogate for owned positions, notify
 #
-# To automate - schedule launchd (Mac) to run weekdays at 5am CT
+# To automate - schedule launchd (Mac) to run weekdays at 8:40am CT (just after the 9:30am ET open)
 #
 # Changelog:
 # 20210227 - Created.

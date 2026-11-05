@@ -430,7 +430,7 @@ EOL
 setup_scheduled_execution() {
     echo
     echo "Would you like to set up scheduled execution of CheckSSR?"
-    echo "This will create a launchd job to run CheckSSR automatically on weekdays at 5:30am."
+    echo "This will create a launchd job to run CheckSSR automatically on weekdays at 8:40am."
     
     # Skip if launchctl is not available
     if ! command -v launchctl &> /dev/null; then
@@ -473,41 +473,41 @@ setup_scheduled_execution() {
     <array>
         <dict>
             <key>Hour</key>
-            <integer>5</integer>
+            <integer>8</integer>
             <key>Minute</key>
-            <integer>30</integer>
+            <integer>40</integer>
             <key>Weekday</key>
             <integer>1</integer>
         </dict>
         <dict>
             <key>Hour</key>
-            <integer>5</integer>
+            <integer>8</integer>
             <key>Minute</key>
-            <integer>30</integer>
+            <integer>40</integer>
             <key>Weekday</key>
             <integer>2</integer>
         </dict>
         <dict>
             <key>Hour</key>
-            <integer>5</integer>
+            <integer>8</integer>
             <key>Minute</key>
-            <integer>30</integer>
+            <integer>40</integer>
             <key>Weekday</key>
             <integer>3</integer>
         </dict>
         <dict>
             <key>Hour</key>
-            <integer>5</integer>
+            <integer>8</integer>
             <key>Minute</key>
-            <integer>30</integer>
+            <integer>40</integer>
             <key>Weekday</key>
             <integer>4</integer>
         </dict>
         <dict>
             <key>Hour</key>
-            <integer>5</integer>
+            <integer>8</integer>
             <key>Minute</key>
-            <integer>30</integer>
+            <integer>40</integer>
             <key>Weekday</key>
             <integer>5</integer>
         </dict>
@@ -531,7 +531,7 @@ EOL
             print_info "launchctl load ${LAUNCHD_DIR}/${LAUNCHD_FILE}"
         else
             ACTIONS_PERFORMED+=("created_launchd")
-            print_success "Scheduled CheckSSR to run at 5:30am on weekdays"
+            print_success "Scheduled CheckSSR to run at 8:40am on weekdays"
             print_info "The schedule was added through launchd at ${LAUNCHD_DIR}/${LAUNCHD_FILE}"
         fi
     else
@@ -562,7 +562,7 @@ print_usage_instructions() {
     echo
     
     if [[ -f "${LAUNCHD_DIR}/${LAUNCHD_FILE}" ]]; then
-        echo "5. CheckSSR is scheduled to run automatically at 5:30am on weekdays"
+        echo "5. CheckSSR is scheduled to run automatically at 8:40am on weekdays"
         echo "   To disable scheduled execution:"
         echo "   launchctl unload ${LAUNCHD_DIR}/${LAUNCHD_FILE}"
         echo "   To enable it again:"
