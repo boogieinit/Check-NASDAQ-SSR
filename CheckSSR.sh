@@ -296,14 +296,16 @@ search() {
         # Skip comments and empty lines
         [[ "${ticker}" =~ ^#.*$ || -z "${ticker}" ]] && continue
         
-        # Use word boundaries to avoid partial matches
-        if grep -q "\<${ticker}\>" "${SSRFILE_PATH}"; then
+        # Match the ticker against the Symbol column only (first CSV field, exact match).
+        # Searching the whole row also hit tickers that appear inside other security names
+        # (e.g. SHOP matched "Direxion Sh Daily SHOP Bull 2x").
+        if awk -F, -v t="${ticker}" '$1 == t { found = 1 } END { exit !found }' "${SSRFILE_PATH}"; then
             log "INFO" "Found match for ${ticker}"
-            grep "\<${ticker}\>" "${SSRFILE_PATH}" >> "${HITS_PATH}"
+            awk -F, -v t="${ticker}" '$1 == t' "${SSRFILE_PATH}" >> "${HITS_PATH}"
         fi
     done < <(grep -v '^#' "${STOCKS}" | grep -v '^$')
     
-    log "INFO" "Search completed, found $(wc -l < "${HITS_PATH}") matches"
+    log "INFO" "Search completed, found $(cut -d, -f1 "${HITS_PATH}" | sort -u | wc -l | tr -d ' ') matches"
 }
 
 notify() {
@@ -314,7 +316,7 @@ notify() {
     
     # Check if we have matches for owned positions
     if [[ -s "${HITS_PATH}" ]]; then
-        match_count=$(wc -l < "${HITS_PATH}")
+        match_count=$(cut -d, -f1 "${HITS_PATH}" | sort -u | wc -l | tr -d ' ')
         log "INFO" "Found ${match_count} position matches on SSR list"
     else
         log "INFO" "No position matches found on SSR list"
