@@ -194,11 +194,11 @@ preflight_check() {
         
         mkdir -p "$(dirname "${STOCKS}")"
         cat > "${STOCKS}" << EOL
-# Add one ticker symbol per line
-# Example:
-AAPL
-MSFT
-GOOG
+# Add one ticker symbol per line (lines starting with # are ignored)
+# Example - remove the leading # to activate:
+# AAPL
+# MSFT
+# GOOG
 EOL
         log "ERROR" "Please edit ${STOCKS} with your positions and run again"
         exit 1
@@ -217,6 +217,13 @@ EOL
         exit 1
     fi
     
+    # Make sure at least one ticker is present (comments and blank lines do not count)
+    if ! grep -v '^#' "${STOCKS}" | grep -v '^$' | grep -q .; then
+        log "ERROR" "Stock positions file has no tickers: ${STOCKS}"
+        log "ERROR" "Add one ticker symbol per line (lines starting with # are ignored)"
+        exit 1
+    fi
+
     log "INFO" "Preflight checks passed"
 }
 
