@@ -14,6 +14,8 @@
 #            Added perl line to clean up $HITS so it can be cat'd into an email
 # 20250514 - Updated for MacOS compatibility, improved error handling and security
 # 20250522 - Added functionality to get a copy of the SSR list and report top 10 stocks
+# 20261105 - Top 10 is now the 10 most recently listed (real date/time sort, newest first);
+#            skips the NASDAQ footer row; ticker matching uses the Symbol column only
 #
 # Info:
 # NASDAQ URL: https://nasdaqtrader.com/dynamic/symdir/shorthalts/shorthaltsYYYYMMDD.txt
@@ -255,18 +257,29 @@ getfile() {
 }
 
 save_ssr_list() {
-    log "INFO" "Processing SSR list to extract top 10 stocks"
+    log "INFO" "Processing SSR list to extract the 10 most recently listed stocks"
     
     # Save header from original file
     head -n 1 "${SSRFILE_PATH}" > "${TOP10_PATH}"
     
-    # Filter out warrants and process to get top 10 stocks sorted by trigger time
-    grep -v "Warrant" "${SSRFILE_PATH}" | 
-    grep -v "Wt," | 
-    grep -v "Wts" | 
-    tail -n +2 | 
-    sort -t ',' -k4,4 | 
-    head -n 10 >> "${TOP10_PATH}"
+    # Filter out warrants, then keep the 10 most recently listed stocks (newest first).
+    # Trigger Time looks like "11/4/2026 9:30:00 AM", so it is converted to a sortable
+    # YYYYMMDDhhmmss key first (a plain text sort puts 10:00 AM before 9:30 AM).
+    # Rows whose last field is not a date/time are skipped, which drops the file's footer
+    # line (a file-creation timestamp such as 20261104163025).
+    grep -v "Warrant" "${SSRFILE_PATH}" |
+    grep -v "Wt," |
+    grep -v "Wts" |
+    tail -n +2 |
+    tr -d '\r' |
+    awk -F, '$NF ~ /^[0-9]+\/[0-9]+\/[0-9][0-9][0-9][0-9] [0-9]+:[0-9][0-9]:[0-9][0-9] [AP]M$/ {
+        split($NF, dt, " "); split(dt[1], d, "/"); split(dt[2], t, ":")
+        h = t[1] % 12; if (dt[3] == "PM") h += 12
+        printf "%04d%02d%02d%02d%02d%02d\t%s\n", d[3], d[1], d[2], h, t[2], t[3], $0
+    }' |
+    sort -t "$(printf '\t')" -r -k1,1 |
+    head -n 10 |
+    cut -f2- >> "${TOP10_PATH}"
     
     # Check if we successfully created the top 10 list
     if [[ ! -s "${TOP10_PATH}" ]]; then
@@ -389,8 +402,8 @@ notify() {
         
         # Add top 10 stocks
         if [[ ${top10_count} -gt 0 ]]; then
-            email_body+="TOP ${top10_count} STOCKS ON SSR LIST:\n"
-            email_body+="==========================\n"
+            email_body+="${top10_count} MOST RECENTLY LISTED ON SSR (newest first):\n"
+            email_body+="===============================================\n"
             email_body+="$(perl -p -e 's/\r\n/\n/g' "${TOP10_PATH}")\n"
         else
             email_body+="No top stocks list available."
